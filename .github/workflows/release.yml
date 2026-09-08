@@ -1,0 +1,52 @@
+# 推送 v* tag 时，在六平台（Linux/Windows/macOS × x64/arm）原生 runner 上
+# 构建 release 二进制，并打包附加到 GitHub Release。
+# 全部用原生架构 runner（ring 在交叉编译下麻烦，原生构建最省事）。
+# 产物命名：gateway-proxy-<target>.tar.gz（Windows 为 .zip）。
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write # 创建 Release 并上传产物
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,      target: x86_64-unknown-linux-gnu,  ext: tar.gz }
+          - { os: ubuntu-24.04-arm,   target: aarch64-unknown-linux-gnu, ext: tar.gz }
+          - { os: windows-latest,     target: x86_64-pc-windows-msvc,    ext: zip }
+          - { os: windows-11-arm,     target: aarch64-pc-windows-msvc,   ext: zip }
+          - { os: macos-13,           target: x86_64-apple-darwin,       ext: tar.gz }
+          - { os: macos-latest,       target: aarch64-apple-darwin,      ext: tar.gz }
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Package (tar.gz)
+        if: matrix.ext == 'tar.gz'
+        run: |
+          tar -czf gateway-proxy-${{ matrix.target }}.tar.gz \
+            -C target/${{ matrix.target }}/release gateway-proxy \
+            -C "${GITHUB_WORKSPACE}" config.example.toml
+      - name: Package (zip)
+        if: matrix.ext == 'zip'
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path target/${{ matrix.target }}/release/gateway-proxy.exe, config.example.toml `
+            -DestinationPath gateway-proxy-${{ matrix.target }}.zip
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: gateway-proxy-${{ matrix.target }}.${{ matrix.ext }}

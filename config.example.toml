@@ -1,0 +1,52 @@
+# gateway-proxy 配置示例。
+# 复制为 config.toml 并按你的内网实际情况修改。
+#
+# 注意 TOML 语义：顶层键（如下面的 https_listen）必须写在任何 [表头] 之前，
+# 否则会被当成该表的字段。写错位置或写错键名会直接报错（deny_unknown_fields）。
+
+# HTTPS 监听端口，默认 443，一般不用改。必须写在所有 [表头] 之前。
+https_listen = 443
+
+# ---- 证书来源二选一：[acme]（自动签发）或 [tls]（自定义证书）----
+# 有 [[http]] 路由时必须提供其中之一；纯 [[tcp]] 转发则都不需要。
+
+[acme]
+# Let's Encrypt 联系邮箱（用于证书到期提醒等）。
+email = "you@example.com"
+# 证书与账户缓存目录，务必持久化：重启复用已签发证书，避免撞速率限制。
+cache_dir = "./acme-cache"
+# 联调阶段先用 staging（不受正式速率限制，但浏览器不信任证书）；
+# 链路验证通过后改成 false 取正式受信证书。
+staging = true
+
+# 自定义证书：想用已有证书（如已购/自签）时，删掉上面的 [acme] 段、放开这段。
+# cert 用 fullchain（服务器证书 + 中间证书）；
+# key 支持 PKCS8 / PKCS1 RSA / SEC1 EC 格式的 PEM 私钥。
+# 所有 [[http]] 域名共用这一张证书：配通配符证书（*.nicoo.eu.cc）或
+# 包含全部子域的 SAN 证书即可。
+# [tls]
+# cert = "/path/to/fullchain.pem"
+# key = "/path/to/private.key"
+
+# ---- L7：HTTPS 反向代理，多个域名共用 https_listen 端口，按 Host 分发 ----
+# 外网访问 https://relay.nicoo.eu.cc -> 内网 http://192.168.10.103:8080
+[[http]]
+domain = "relay.nicoo.eu.cc"
+upstream = "http://192.168.10.103:8080"
+
+# 更多子域按需追加（WebSocket 等长连接同样走这里，自动透传 Upgrade）：
+# [[http]]
+# domain = "web.nicoo.eu.cc"
+# upstream = "http://192.168.10.103:3000"
+
+# ---- L4：裸 TCP 透传，每条独占一个监听端口 ----
+# SSH 等无域名概念的协议只能按端口路由，域名仅用于 DNS 解析：
+# 外网连 develop.nicoo.eu.cc:2222 -> 内网 192.168.10.103:22
+[[tcp]]
+listen = 2222
+upstream = "192.168.10.103:22"
+
+# 更多端口转发按需追加（listen 不能与 https_listen 或彼此重复）：
+# [[tcp]]
+# listen = 6379
+# upstream = "192.168.10.103:6379"

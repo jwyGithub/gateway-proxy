@@ -1,0 +1,29 @@
+[package]
+name = "gateway-proxy"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+bytes = "1.12.1"
+futures-util = "0.3.34"
+http-body-util = "0.1.5"
+hyper = { version = "1.11.1", features = ["full"] }
+hyper-util = { version = "0.1.20", features = ["full"] }
+# TLS 后端统一使用 ring：
+# x86_64/aarch64-windows-msvc 自带预生成汇编，仅需 MSVC 自带的 C 编译器，
+# 无需 cmake / NASM（避免 aws-lc-rs 在 Windows 上的额外构建工具链）。
+rustls = { version = "0.23.43", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+# PEM 解析：自定义证书（[tls]）加载证书链/私钥。
+rustls-pemfile = "2"
+rustls-acme = { version = "0.15.4", default-features = false, features = ["ring", "tokio", "tls12", "webpki-roots"] }
+serde = { version = "1.0.229", features = ["derive"] }
+socket2 = "0.6.5"
+tokio = { version = "1.53.1", features = ["full"] }
+tokio-rustls = { version = "0.26.5", default-features = false, features = ["ring", "tls12", "logging"] }
+tokio-stream = "0.1.19"
+# TaskTracker + CancellationToken：连接级 task 统一挂账，做优雅退出。
+tokio-util = { version = "0.7", features = ["rt"] }
+toml = "1.1.5"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
