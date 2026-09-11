@@ -32,6 +32,10 @@ pub struct Config {
 
     #[serde(default)]
     pub tcp: Vec<TcpRoute>,
+
+    /// Cloudflare DDNS（IPv6 前缀漂移兜底），可选。
+    #[serde(default)]
+    pub ddns: Option<DdnsConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -60,7 +64,7 @@ pub struct TlsCertConfig {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct HttpRoute {
-    /// 对外域名，如 `relay.nicoo.eu.cc`。
+    /// 对外域名，如 `relay.example.com`。
     pub domain: String,
     /// 内网上游，如 `http://192.168.10.103:8080`。
     pub upstream: String,
@@ -75,6 +79,30 @@ pub struct TcpRoute {
     pub upstream: String,
 }
 
+/// Cloudflare DDNS：IPv6 前缀漂移时自动更新 AAAA 记录。
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct DdnsConfig {
+    /// Cloudflare 上的 zone（主域名），如 `example.com`。
+    pub zone: String,
+    /// 直接指定 zone id（Cloudflare 仪表盘 URL 里能看到）。
+    /// 不填则按 `zone` 名查询，这需要 Token 有 Zone 读取权限。
+    #[serde(default)]
+    pub zone_id: Option<String>,
+    /// 要同步公网 IPv6 的 AAAA 记录名，如 `["example.com", "*.example.com"]`，
+    /// 必须先在 Cloudflare 控制台手工创建。
+    pub records: Vec<String>,
+    /// 存 Cloudflare API Token 的环境变量名（推荐，token 不落盘）。
+    #[serde(default)]
+    pub api_token_env: Option<String>,
+    /// 存 Cloudflare API Token 的文件路径（Windows 服务不便传环境变量时用）。
+    #[serde(default)]
+    pub api_token_file: Option<String>,
+    /// 轮询间隔（秒）。
+    #[serde(default = "default_ddns_interval")]
+    pub interval_secs: u64,
+}
+
 fn default_https_listen() -> u16 {
     443
 }
@@ -83,6 +111,9 @@ fn default_cache_dir() -> String {
 }
 fn default_true() -> bool {
     true
+}
+fn default_ddns_interval() -> u64 {
+    60
 }
 
 impl Config {
@@ -147,6 +178,16 @@ impl Config {
             if !ports.insert(r.listen) {
                 bail!("[[tcp]] listen 端口重复: {}", r.listen);
             }
+        }
+
+        // DDNS 段校验：token 来源至少一个，records 非空。
+        if let Some(ddns) = &self.ddns {
+            ensure!(!ddns.zone.trim().is_empty(), "[ddns] zone 不能为空");
+            ensure!(!ddns.records.is_empty(), "[ddns] records 不能为空");
+            ensure!(
+                ddns.api_token_env.is_some() || ddns.api_token_file.is_some(),
+                "[ddns] 需要 api_token_env 或 api_token_file 之一"
+            );
         }
 
         Ok(())

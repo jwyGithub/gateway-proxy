@@ -7,6 +7,7 @@
 //! 路由全部来自 `config.toml`，改路由不用改代码。
 
 mod config;
+mod ddns;
 mod http_proxy;
 mod net;
 mod tcp_proxy;
@@ -76,6 +77,12 @@ async fn main() -> anyhow::Result<()> {
                 error!(port, error = %format!("{e:#}"), "HTTPS 服务退出");
             }
         });
+    }
+
+    // DDNS：IPv6 前缀漂移时自动更新 Cloudflare AAAA 记录（可选）。
+    if let Some(ddns) = cfg.ddns.clone() {
+        let token = ddns::read_token(&ddns).context("读取 DDNS API Token 失败")?;
+        tracker.spawn(ddns::run(ddns, token));
     }
 
     if cfg.http.is_empty() && cfg.tcp.is_empty() {

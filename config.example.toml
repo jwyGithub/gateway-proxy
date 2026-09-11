@@ -22,26 +22,26 @@ staging = true
 # 自定义证书：想用已有证书（如已购/自签）时，删掉上面的 [acme] 段、放开这段。
 # cert 用 fullchain（服务器证书 + 中间证书）；
 # key 支持 PKCS8 / PKCS1 RSA / SEC1 EC 格式的 PEM 私钥。
-# 所有 [[http]] 域名共用这一张证书：配通配符证书（*.nicoo.eu.cc）或
+# 所有 [[http]] 域名共用这一张证书：配通配符证书（*.example.com）或
 # 包含全部子域的 SAN 证书即可。
 # [tls]
 # cert = "/path/to/fullchain.pem"
 # key = "/path/to/private.key"
 
 # ---- L7：HTTPS 反向代理，多个域名共用 https_listen 端口，按 Host 分发 ----
-# 外网访问 https://relay.nicoo.eu.cc -> 内网 http://192.168.10.103:8080
+# 外网访问 https://relay.example.com -> 内网 http://192.168.10.103:8080
 [[http]]
-domain = "relay.nicoo.eu.cc"
+domain = "relay.example.com"
 upstream = "http://192.168.10.103:8080"
 
 # 更多子域按需追加（WebSocket 等长连接同样走这里，自动透传 Upgrade）：
 # [[http]]
-# domain = "web.nicoo.eu.cc"
+# domain = "web.example.com"
 # upstream = "http://192.168.10.103:3000"
 
 # ---- L4：裸 TCP 透传，每条独占一个监听端口 ----
 # SSH 等无域名概念的协议只能按端口路由，域名仅用于 DNS 解析：
-# 外网连 develop.nicoo.eu.cc:2222 -> 内网 192.168.10.103:22
+# 外网连 develop.example.com:2222 -> 内网 192.168.10.103:22
 [[tcp]]
 listen = 2222
 upstream = "192.168.10.103:22"
@@ -50,3 +50,22 @@ upstream = "192.168.10.103:22"
 # [[tcp]]
 # listen = 6379
 # upstream = "192.168.10.103:6379"
+
+# ---- DDNS：IPv6 前缀漂移兜底（可选）----
+# 家宽公网 IPv6 前缀会变，网关本身不受影响（绑 [::]），断的是 DNS 记录。
+# 开启后定时检测公网地址，变了就自动更新 Cloudflare 上这些 AAAA 记录。
+#
+# 前置准备：
+# 1. Cloudflare 控制台创建 API Token，权限给 Zone / DNS / Edit
+#    （不填 zone_id 时还需要 Zone 读取权限，建议直接填上 zone_id）；
+# 2. records 里列的记录先手工创建好（工具只更新、不自动创建）。
+#
+# [ddns]
+# zone = "example.com"
+# # zone_id 在 Cloudflare 仪表盘该域名 URL 里能看到，填上可少一次查询。
+# zone_id = "0123456789abcdef..."
+# records = ["example.com", "*.example.com"]
+# # Token 存环境变量（推荐，不落盘）或文件（Windows 服务用）。
+# api_token_env = "CF_API_TOKEN"
+# # api_token_file = "C:/gateway/cf-token.txt"
+# interval_secs = 60

@@ -9,6 +9,8 @@ bytes = "1.12.1"
 futures-util = "0.3.34"
 http-body-util = "0.1.5"
 hyper = { version = "1.11.1", features = ["full"] }
+# DDNS 出站 HTTPS（Cloudflare API / 公网 IP 回显）。
+hyper-rustls = { version = "0.27", default-features = false, features = ["ring", "webpki-tokio", "http1"] }
 hyper-util = { version = "0.1.20", features = ["full"] }
 # TLS 后端统一使用 ring：
 # x86_64/aarch64-windows-msvc 自带预生成汇编，仅需 MSVC 自带的 C 编译器，
@@ -18,6 +20,7 @@ rustls = { version = "0.23.43", default-features = false, features = ["ring", "s
 rustls-pemfile = "2"
 rustls-acme = { version = "0.15.4", default-features = false, features = ["ring", "tokio", "tls12", "webpki-roots"] }
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1"
 socket2 = "0.6.5"
 tokio = { version = "1.53.1", features = ["full"] }
 tokio-rustls = { version = "0.26.5", default-features = false, features = ["ring", "tls12", "logging"] }
