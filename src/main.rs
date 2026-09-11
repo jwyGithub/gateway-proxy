@@ -115,7 +115,7 @@ fn init_tracing() {
     #[cfg(windows)]
     {
         #[link(name = "kernel32")]
-        extern "system" {
+        unsafe extern "system" {
             fn SetConsoleOutputCP(code_page: u32) -> i32;
         }
         unsafe { SetConsoleOutputCP(65001) };
