@@ -20,7 +20,9 @@ use anyhow::Context;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 use tokio_util::task::TaskTracker;
+use time::UtcOffset;
 use tracing::{error, info};
+use tracing_subscriber::fmt::time::OffsetTime;
 use tracing_subscriber::EnvFilter;
 
 use config::Config;
@@ -106,7 +108,23 @@ async fn main() -> anyhow::Result<()> {
 }
 
 /// 初始化日志：默认 `info`，可用环境变量 `RUST_LOG` 覆盖（如 `RUST_LOG=debug`）。
+/// 时间戳固定东八区（UTC+8）展示。
 fn init_tracing() {
+    // Windows 控制台默认 GBK 代码页，UTF-8 中文日志会乱码，切到 UTF-8 代码页。
+    // 直接声明 kernel32 导出函数，避免为一次调用引入 windows-sys 依赖。
+    #[cfg(windows)]
+    {
+        #[link(name = "kernel32")]
+        extern "system" {
+            fn SetConsoleOutputCP(code_page: u32) -> i32;
+        }
+        unsafe { SetConsoleOutputCP(65001) };
+    }
+
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    tracing_subscriber::fmt().with_env_filter(filter).init();
+    let timer = OffsetTime::new(
+        UtcOffset::from_hms(8, 0, 0).expect("固定偏移量不会越界"),
+        time::format_description::well_known::Rfc3339,
+    );
+    tracing_subscriber::fmt().with_env_filter(filter).with_timer(timer).init();
 }

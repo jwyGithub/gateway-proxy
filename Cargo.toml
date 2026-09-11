@@ -28,5 +28,7 @@ tokio-stream = "0.1.19"
 # TaskTracker + CancellationToken：连接级 task 统一挂账，做优雅退出。
 tokio-util = { version = "0.7", features = ["rt"] }
 toml = "1.1.5"
+# 时间戳格式化：本地时区偏移（OffsetTime）。
+time = { version = "0.3", default-features = false, features = ["formatting"] }
 tracing = "0.1.44"
-tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.23", features = ["env-filter", "time"] }
