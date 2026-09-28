@@ -110,16 +110,8 @@ async fn main() -> anyhow::Result<()> {
 /// 初始化日志：默认 `info`，可用环境变量 `RUST_LOG` 覆盖（如 `RUST_LOG=debug`）。
 /// 时间戳固定东八区（UTC+8）展示。
 fn init_tracing() {
-    // Windows 控制台默认 GBK 代码页，UTF-8 中文日志会乱码，切到 UTF-8 代码页。
-    // 直接声明 kernel32 导出函数，避免为一次调用引入 windows-sys 依赖。
     #[cfg(windows)]
-    {
-        #[link(name = "kernel32")]
-        unsafe extern "system" {
-            fn SetConsoleOutputCP(code_page: u32) -> i32;
-        }
-        unsafe { SetConsoleOutputCP(65001) };
-    }
+    enable_windows_utf8_console();
 
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
     let timer = OffsetTime::new(
@@ -127,4 +119,22 @@ fn init_tracing() {
         time::format_description::well_known::Rfc3339,
     );
     tracing_subscriber::fmt().with_env_filter(filter).with_timer(timer).init();
+}
+
+/// Windows 控制台默认是系统 ANSI/OEM 代码页（中文环境多为 GBK）。
+/// 程序日志是 UTF-8：必须把控制台输入/输出都切到 65001，并配合
+/// `build.rs` 嵌入的 UTF-8 `activeCodePage` 清单，中文才不会乱码。
+#[cfg(windows)]
+fn enable_windows_utf8_console() {
+    const UTF8: u32 = 65001;
+    #[link(name = "kernel32")]
+    unsafe extern "system" {
+        fn SetConsoleOutputCP(code_page: u32) -> i32;
+        fn SetConsoleCP(code_page: u32) -> i32;
+    }
+    // 返回值忽略：无控制台（服务/重定向）时会失败，属预期。
+    unsafe {
+        SetConsoleOutputCP(UTF8);
+        SetConsoleCP(UTF8);
+    }
 }

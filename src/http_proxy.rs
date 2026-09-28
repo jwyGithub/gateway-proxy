@@ -198,7 +198,10 @@ impl Proxy {
             });
             Ok(Response::from_parts(rparts, empty_body()))
         } else {
-            // 上游拒绝升级（如按普通请求返回 200）：当普通响应转回。
+            // 上游拒绝升级（如按普通请求返回 200/403）：当普通响应转回。
+            // 浏览器 WebSocket 收不到 101 时通常表现为 close 1006。
+            let status = resp.status().as_u16();
+            warn!(%host, %upstream, status, "上游拒绝 WebSocket 升级");
             let (mut rparts, rbody) = resp.into_parts();
             strip_hop_by_hop(&mut rparts.headers, false);
             Ok(Response::from_parts(rparts, rbody.boxed()))
@@ -266,7 +269,9 @@ pub async fn serve_https(
 /// 把请求改写为指向 `upstream`，返回新的 URI：
 /// - origin + 原 path?query；
 /// - 去逐跳头（`keep_upgrade=true` 时保留 connection/upgrade）；
-/// - 补 `X-Forwarded-*`，Host 改写为上游 authority（不把对外域名透给内网）。
+/// - 补 `X-Forwarded-*`；
+/// - **保留客户端 Host**（不要改成上游 IP）。code-server / VS Code 等会用 Host
+///   与 Origin 校验 WebSocket；改成 `192.168.x.x` 会导致升级失败，浏览器报 1006。
 fn rewrite_for_upstream(
     headers: &mut HeaderMap,
     uri: &Uri,
@@ -279,13 +284,9 @@ fn rewrite_for_upstream(
     let new_uri: Uri = format!("{}{}", upstream.trim_end_matches('/'), pq)
         .parse()
         .with_context(|| format!("拼接上游 URI 失败: {upstream}{pq}"))?;
-    let up_authority = new_uri.authority().map(|a| a.as_str().to_owned());
 
     strip_hop_by_hop(headers, keep_upgrade);
     append_forwarded(headers, peer, host);
-    if let Some(auth) = up_authority {
-        headers.insert(HOST, HeaderValue::from_str(&auth).context("上游 Host 头非法")?);
-    }
     Ok(new_uri)
 }
 

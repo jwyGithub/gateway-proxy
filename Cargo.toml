@@ -3,6 +3,10 @@ name = "gateway-proxy"
 version = "0.1.0"
 edition = "2024"
 
+[build-dependencies]
+# Windows：嵌入 UTF-8 activeCodePage 清单，避免中文日志按 GBK 解码乱码。
+embed-manifest = "1.4"
+
 [dependencies]
 anyhow = "1.0.104"
 bytes = "1.12.1"
