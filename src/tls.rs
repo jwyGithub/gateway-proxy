@@ -32,7 +32,7 @@ pub struct TlsFront {
     /// TLS-ALPN-01 挑战用配置（`is_tls_alpn_challenge` 为真时使用）。
     /// 自定义证书模式下没有 ACME，此字段不会被触发，用默认配置占位。
     challenge: Arc<ServerConfig>,
-    /// 正常连接用配置：已设置 ALPN(h2 + http/1.1)。
+    /// 正常连接用配置：ALPN 仅 http/1.1（为兼容 WebSocket，见 start() 说明）。
     default: Arc<ServerConfig>,
 }
 
@@ -43,7 +43,12 @@ impl TlsFront {
     /// ACME 模式会 spawn 后台驱动 task（签发/续期/缓存）。
     pub fn start(cfg: &Config) -> anyhow::Result<Self> {
         let provider = Arc::new(ring::default_provider());
-        let alpn = vec![b"h2".to_vec(), b"http/1.1".to_vec()];
+        // 只协商 http/1.1，不再提供 h2。原因：WebSocket 的 `Upgrade` 握手只定义在
+        // HTTP/1.1 上；一旦浏览器与网关协商到 h2，wss 走的是 RFC 8441 Extended CONNECT
+        // (:protocol=websocket)，而本代理只在 h1 的 Upgrade 头路径做隧道透传，
+        // 不支持 Extended CONNECT，会导致 wss 连接失败（如 code-server）。
+        // 上游本就是明文 h1（转发时统一降到 HTTP/1.1），去掉 h2 无损失。
+        let alpn = vec![b"http/1.1".to_vec()];
 
         let (default, challenge) = match &cfg.tls {
             Some(tls_cfg) => {
@@ -91,7 +96,7 @@ impl TlsFront {
 
         let challenge = state.challenge_rustls_config();
 
-        // 正常连接自建 ServerConfig：显式用 ring provider，并设 ALPN 让 h2 可协商。
+        // 正常连接自建 ServerConfig：显式用 ring provider，ALPN 仅 http/1.1（见 start() 说明）。
         let mut default = ServerConfig::builder_with_provider(provider)
             .with_safe_default_protocol_versions()
             .context("初始化 rustls 协议版本失败")?
