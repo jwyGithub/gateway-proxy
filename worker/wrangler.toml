@@ -1,0 +1,21 @@
+# Cloudflare Worker 配置：IPv4 客户端 -> Worker -> IPv6 源站(gateway-proxy)。
+# 部署：cd worker && npx wrangler deploy
+
+name = "gateway-proxy-relay"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+# 允许 Worker 的 fetch() 回源到非标端口(如 8443)。
+compatibility_flags = ["allow_custom_ports"]
+
+# 客户端入口域名(自定义域, CF 自动签边缘证书、天然双栈)。
+# 【必须】不同于下面 HOST_MAP 里的源站域名, 否则 Worker 会 fetch 自己造成死循环。
+routes = [
+  { pattern = "relay4.nicoo.eu.cc", custom_domain = true },
+  { pattern = "postman4.nicoo.eu.cc", custom_domain = true },
+  { pattern = "code4.nicoo.eu.cc", custom_domain = true },
+]
+
+[vars]
+# 入口域名 -> 源站 "host:port"。源站 host 必须与网关 [[http]].domain 一致。
+# 加服务只改这里：再加一条映射 + 上面 routes 里加一条自定义域即可。
+HOST_MAP = """{"relay4.nicoo.eu.cc":"relay.nicoo.eu.cc:8443","postman4.nicoo.eu.cc":"postman.nicoo.eu.cc:8443","code4.nicoo.eu.cc":"code.nicoo.eu.cc:8443"}"""
